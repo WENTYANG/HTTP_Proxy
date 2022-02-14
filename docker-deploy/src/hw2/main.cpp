@@ -27,6 +27,7 @@
 using namespace std;
 
 #include "helperFunction.h"
+#include "parse.h"
 #include "proxy.h"
 
 
@@ -59,12 +60,26 @@ int main() {
     // create_daemon();
 
     int request_id = 0;
-    int socket_fd = init_server(PORT);
+    int socket_fd;
+    try {
+        socket_fd = init_server(PORT);
+    }
+    catch(exception& e) {
+        cerr << e.what() << endl;
+        exit(EXIT_FAILURE);
+    }
+    
     string ipFrom;
 
     while(true) {
-        int client_connection_fd = accept_server(socket_fd, &ipFrom);
-
+        int client_connection_fd;
+        try {
+            client_connection_fd = accept_server(socket_fd, &ipFrom);
+        }
+        catch(exception& e) {
+            cerr << e.what() << endl;
+            continue;
+        }
         pthread_t thread;
         pthread_mutex_lock(&lock);
         threadPara_t paras;
@@ -72,7 +87,6 @@ int main() {
         paras.request_id = request_id;
         paras.ip_from = ipFrom;
         // cout << "create thread with socket_fd=" << socket_fd << "with request_id=" << request_id << endl;
-        cout << thread << ' ' << request_id << endl;
         ++request_id;
         pthread_mutex_unlock(&lock);
         pthread_create(&thread, NULL, proxyMain, &paras);

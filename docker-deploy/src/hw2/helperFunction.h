@@ -1,3 +1,14 @@
+/* ------------------------ exception helper ------------------------ */
+class MyException : public exception {
+private:
+    string msg;
+public:
+    MyException(string msg) : msg(msg) {}
+
+    const char * what() const throw() {
+        return msg.c_str();
+    }
+};
 
 /* ------------------------ logger helper ------------------------ */
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
@@ -55,7 +66,7 @@ int init_server(const char *port) {
         string msg = "cannot get address info for host";
         string cate = "ERROR";
         logging_msg(-1, cate, msg);
-        exit(EXIT_FAILURE);
+        throw MyException("Socket expection");
     }
 
     if(strlen(port) == 0) {
@@ -70,7 +81,7 @@ int init_server(const char *port) {
         string msg = "cannot create socket";
         string cate = "ERROR";
         logging_msg(-1, cate, msg);
-        exit(EXIT_FAILURE);
+        throw MyException("Socket expection");
     }
 
     int yes = 1;
@@ -80,7 +91,7 @@ int init_server(const char *port) {
         string msg = "cannot bind socket";
         string cate = "ERROR";
         logging_msg(-1, cate, msg);
-        exit(EXIT_FAILURE);
+        throw MyException("Socket expection");
     }
 
     status = listen(socket_fd, 100);
@@ -88,7 +99,7 @@ int init_server(const char *port) {
         string msg = "cannot listen on socket";
         string cate = "ERROR";
         logging_msg(-1, cate, msg);
-        exit(EXIT_FAILURE);
+        throw MyException("Socket expection");
     }
 
     freeaddrinfo(host_info_list);
@@ -105,7 +116,7 @@ int accept_server(int socket_fd, string* ipFrom) {
         string msg = "cannot accept connection on socket";
         string cate = "ERROR";
         logging_msg(-1, cate, msg);
-        exit(EXIT_FAILURE);
+        throw MyException("Socket expection");
     }
     struct sockaddr_in* addr_in = (struct sockaddr_in *)&socket_addr;
     *ipFrom = inet_ntoa(addr_in->sin_addr);
@@ -124,25 +135,28 @@ int init_client(const char *hostname, const char *port) {
 
     status = getaddrinfo(hostname, port, &host_info, &host_info_list);
     if (status != 0) {
-        cerr << "Error: cannot get address info for host" << endl;
-        cerr << "  (" << hostname << "," << port << ")" << endl;
-        exit(EXIT_FAILURE);
+        string msg = "cannot get address info for host";
+        string cate = "ERROR";
+        logging_msg(-1, cate, msg);
+        throw MyException("Socket expection");
     }
 
     socket_fd = socket(host_info_list->ai_family, 
                 host_info_list->ai_socktype, 
                 host_info_list->ai_protocol);
     if (socket_fd == -1) {
-        cerr << "Error: cannot create socket" << endl;
-        cerr << "  (" << hostname << "," << port << ")" << endl;
-        exit(EXIT_FAILURE);
+        string msg = "cannot create socket";
+        string cate = "ERROR";
+        logging_msg(-1, cate, msg);
+        throw MyException("Socket expection");
     }
         
     status = connect(socket_fd, host_info_list->ai_addr, host_info_list->ai_addrlen);
     if (status == -1) {
-        cerr << "Error: cannot connect to socket" << endl;
-        cerr << "  (" << hostname << "," << port << ")" << endl;
-        exit(EXIT_FAILURE);
+        string msg = "cannot connect to socket";
+        string cate = "ERROR";
+        logging_msg(-1, cate, msg);
+        throw MyException("Socket expection");
     }
 
     freeaddrinfo(host_info_list);
