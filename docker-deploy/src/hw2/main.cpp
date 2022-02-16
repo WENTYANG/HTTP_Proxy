@@ -13,6 +13,7 @@
 #include <time.h>
 #include <exception>
 #include <cstring>
+#include <string>
 #include <vector>
 #include <fstream>
 
@@ -23,6 +24,8 @@
 #define OK "HTTP/1.1 200 OK\r\n\r\n"
 #define BADREQUEST "HTTP/1.1 400 Bad Request\r\n\r\n"
 #define BADGATEWAY "HTTP/1.1 502 Bad Gateway\r\n\r\n"
+
+typedef unsigned long long ull;
 
 using namespace std;
 

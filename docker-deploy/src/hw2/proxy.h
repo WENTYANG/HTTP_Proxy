@@ -1,13 +1,14 @@
 class Proxy {
-public:
+   public:
     int client_fd;
     int id;
     int server_fd;
     string client_ip;
-    const char * hostname;
-    const char * port;
+    const char* hostname;
+    const char* port;
 
-    Proxy(int socket_id, int id, string& ip) : client_fd(socket_id), id(id), server_fd(0), client_ip(ip) {}
+    Proxy(int socket_id, int id, string& ip)
+        : client_fd(socket_id), id(id), server_fd(0), client_ip(ip) {}
 
     string get_time() {
         time_t rawtime;
@@ -17,16 +18,38 @@ public:
         return asctime(ptm);
     }
 
-    void recv_all() {
-
+    void recv_and_send(HttpResponse& http_resp) {
+        vector<char> buf(RECV_BUF_LEN);
+        ssize_t recv_size, send_size;
+        if(!http_resp.is_chunked && http_resp.content_len > 0) {
+            ull tot_len = http_resp.content_len, cur_len = http_resp.size; //TODO: - header.size()
+            while(cur_len < tot_len) {
+                recv_size = recv(server_fd, &buf.data()[0], RECV_BUF_LEN, 0);
+                if(recv_size <= 0) break;
+                send_size = send(client_fd, &buf.data()[0], recv_size, MSG_NOSIGNAL);
+                cur_len += recv_size;
+                http_resp.body += string(buf.data());
+            }
+        
+        }
+        else if(http_resp.is_chunked) {
+            while(true) {
+                recv_size = recv(server_fd, &buf.data()[0], RECV_BUF_LEN, 0);
+                if(recv_size <= 0) break;
+                send_size = send(client_fd, &buf.data()[0], recv_size, MSG_NOSIGNAL);
+                if(send_size <= 0) break;
+                http_resp.body += string(buf.data());
+            }
+        }
     }
 
     int proxy_CONNECT() {
         // send OK to client
         ssize_t send_size = send(client_fd, OK, sizeof(OK), 0);
-        if(send_size <= 0) return -1;
+        if (send_size <= 0)
+            return -1;
         string resp = OK;
-        resp = resp.substr(0, resp.length()-4);
+        resp = resp.substr(0, resp.length() - 4);
         logging_send_response(id, resp);
 
         fd_set rset;
@@ -34,31 +57,37 @@ public:
         int fdmax = max(server_fd, client_fd);
         struct timeval timeout;
         timeout.tv_sec = 36000;
-        while(true) {
+        while (true) {
             FD_ZERO(&rset);
             vector<char> buf(RECV_BUF_LEN);
 
-            for(int& fd: fd_list) {
+            for (int& fd : fd_list) {
                 FD_SET(fd, &rset);
             }
-            
-            select(fdmax+1, &rset, NULL, NULL, &timeout);
-            
-            for(int& fd: fd_list) {
-                if(FD_ISSET(fd, &rset)) {
-                    ssize_t recv_size = recv(fd, &buf.data()[0], RECV_BUF_LEN, 0);
-                    if(recv_size < 0) return -1;
-                    else if(recv_size == 0) return 0;
+
+            select(fdmax + 1, &rset, NULL, NULL, &timeout);
+
+            for (int& fd : fd_list) {
+                if (FD_ISSET(fd, &rset)) {
+                    ssize_t recv_size =
+                        recv(fd, &buf.data()[0], RECV_BUF_LEN, 0);
+                    if (recv_size < 0)
+                        return -1;
+                    else if (recv_size == 0)
+                        return 0;
                     string msg = buf.data();
-                    if(fd == client_fd) {
-                        send_size = send(server_fd, &buf.data()[0], recv_size, 0);
-                        if(send_size <= 0) return -1;
+                    if (fd == client_fd) {
+                        send_size =
+                            send(server_fd, &buf.data()[0], recv_size, 0);
+                        if (send_size <= 0)
+                            return -1;
 
                         logging_send_request(id, msg, hostname);
-                    }
-                    else {
-                        send_size = send(client_fd, &buf.data()[0], recv_size, 0);
-                        if(send_size <= 0) return -1;
+                    } else {
+                        send_size =
+                            send(client_fd, &buf.data()[0], recv_size, 0);
+                        if (send_size <= 0)
+                            return -1;
 
                         logging_send_response(id, msg);
                     }
@@ -70,42 +99,63 @@ public:
     }
 
     int proxy_GET(HttpRequest& http_req) {
-
         // send request to server
-        ssize_t send_size = send(server_fd, &http_req.raw_data.data()[0], http_req.size, 0);
-        if(send_size <= 0) return -1;
+        ssize_t send_size =
+            send(server_fd, &http_req.raw_data.data()[0], http_req.size, 0);
+        if (send_size <= 0)
+            return -1;
 
         logging_send_request(id, http_req.firstline, hostname);
 
-        // receive response from server
+        // receive first response from server
         vector<char> server_buf(RECV_BUF_LEN);
-        ssize_t recv_size = recv(server_fd, &server_buf.data()[0], RECV_BUF_LEN, 0);
-        if(recv_size <= 0) return -1;
-        // TODO: HttpResponse http_resp(server_buf);
+        ssize_t recv_size =
+            recv(server_fd, &server_buf.data()[0], RECV_BUF_LEN, 0);
+        if (recv_size <= 0)
+            return -1;
 
-        string resp = server_buf.data();
-        logging_receive_response(id, resp, hostname);
+        HttpResponse http_resp(server_buf);
+        http_resp.size = recv_size;
+        http_resp.parse_response();
 
-        recv_all();
+        // string buff = server_buf.data();
+        // cout << "response: \n" << buff << endl;
 
+        // cout << http_resp.version << endl;
+        // cout << http_resp.status_code << endl;
+        // cout << http_resp.reason_phrase << endl;
+        // cout << http_resp.is_chunked << endl;
+        // cout << http_resp.content_len << endl;
+        // for (auto it : http_resp.header) {
+        //     cout << "Key: " << it.first << " Value: " << it.second << endl;
+        // }
+        // cout << http_resp.body << endl;
+        // cout << http_resp.firstline << endl;
 
-        // send response to client
-        send_size = send(client_fd, &server_buf.data()[0], BUF_LEN, 0);
-        if(send_size <= 0) return -1;
+        logging_receive_response(id, http_resp.firstline, hostname);
 
-        logging_send_response(id, resp);
+        // send first response to client
+        send_size =
+            send(server_fd, &http_req.raw_data.data()[0], http_req.size, 0);
+        if (send_size <= 0)
+            return -1;
+
+        recv_and_send(http_resp);
+
+        logging_send_response(id, http_resp.firstline);
         return 0;
     }
 
     int proxy_POST(HttpRequest& http_req) {
-        
+        return 0;
     }
 
     int proxy_OTHER() {
         ssize_t send_size = send(client_fd, BADREQUEST, sizeof(BADREQUEST), 0);
-        if(send_size <= 0) return -1;
+        if (send_size <= 0)
+            return -1;
         string resp = BADREQUEST;
-        resp = resp.substr(0, resp.length()-4);
+        resp = resp.substr(0, resp.length() - 4);
         logging_send_response(id, resp);
         return -1;
     }
@@ -114,7 +164,6 @@ public:
         close(server_fd);
         close(client_fd);
     }
-
 };
 
 void* proxyMain(void* paras) {
@@ -122,11 +171,12 @@ void* proxyMain(void* paras) {
 
     Proxy proxy(args->socket_fd, args->request_id, args->ip_from);
 
-
     // receive request from client
     vector<char> client_buf(BUF_LEN);
-    ssize_t recv_size = recv(proxy.client_fd, &client_buf.data()[0], BUF_LEN, 0);
-    if(recv_size <= 0) return NULL;
+    ssize_t recv_size =
+        recv(proxy.client_fd, &client_buf.data()[0], BUF_LEN, 0);
+    if (recv_size <= 0)
+        return NULL;
 
     string ip = proxy.client_ip, time = proxy.get_time();
 
@@ -141,35 +191,30 @@ void* proxyMain(void* paras) {
     proxy.port = http_request.header["port"].c_str();
 
     try {
+        cout << "hostname: " << proxy.hostname << " port: " << proxy.port << " server_fd " << proxy.server_fd << endl;
         proxy.server_fd = init_client(proxy.hostname, proxy.port);
-        cout << "hostname: " << proxy.hostname << " server_fd " << proxy.server_fd << endl;
-    }
-    catch(exception& e) {
+    } catch (exception& e) {
         cerr << e.what() << endl;
         return NULL;
     }
-    
 
-    if(http_request.method == "CONNECT") { // CONNECT
+    if (http_request.method == "CONNECT") {  // CONNECT
         return NULL;
-        if(proxy.proxy_CONNECT() == -1)
+        if (proxy.proxy_CONNECT() == -1)
             return NULL;
-    }
-    else if(http_request.method == "GET") { // GET
-        if(proxy.proxy_GET(http_request) == -1)
+    } else if (http_request.method == "GET") {  // GET
+        if (proxy.proxy_GET(http_request) == -1)
             return NULL;
-    }
-    else if(http_request.method == "POST"){ // POST
+    } else if (http_request.method == "POST") {  // POST
         return NULL;
-        if(proxy.proxy_POST(http_request) == -1)
+        if (proxy.proxy_POST(http_request) == -1)
             return NULL;
-    }
-    else {
-        if(proxy.proxy_OTHER() == -1)
+    } else {
+        if (proxy.proxy_OTHER() == -1)
             return NULL;
     }
 
     logging_close_tunnel(proxy.id);
-    
+
     return NULL;
 }
