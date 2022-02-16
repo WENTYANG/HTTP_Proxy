@@ -46,6 +46,12 @@ void logging_msg(int id, string& cate, string& msg) {
     pthread_mutex_unlock(&lock);
 }
 
+void logging_close_tunnel(int id) {
+    pthread_mutex_lock(&lock);
+    log_ofs << id << ": Tunnel closed" << endl;
+    pthread_mutex_unlock(&lock);
+}
+
 
 /* ------------------------ socket helper ------------------------ */
 int init_server(const char *port) {

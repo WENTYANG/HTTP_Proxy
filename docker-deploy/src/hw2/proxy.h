@@ -17,6 +17,10 @@ public:
         return asctime(ptm);
     }
 
+    void recv_all() {
+
+    }
+
     int proxy_CONNECT() {
         // send OK to client
         ssize_t send_size = send(client_fd, OK, sizeof(OK), 0);
@@ -24,12 +28,12 @@ public:
         string resp = OK;
         resp = resp.substr(0, resp.length()-4);
         logging_send_response(id, resp);
-        
+
         fd_set rset;
         vector<int> fd_list = {server_fd, client_fd};
         int fdmax = max(server_fd, client_fd);
         struct timeval timeout;
-        timeout.tv_sec = 5;
+        timeout.tv_sec = 36000;
         while(true) {
             FD_ZERO(&rset);
             vector<char> buf(RECV_BUF_LEN);
@@ -46,8 +50,6 @@ public:
                     if(recv_size < 0) return -1;
                     else if(recv_size == 0) return 0;
                     string msg = buf.data();
-                    // cout << "recv size: " << recv_size << " msg len: " << msg.length() << " fd " << fd << endl;
-                    // cout << "msg: " << msg << endl;
                     if(fd == client_fd) {
                         send_size = send(server_fd, &buf.data()[0], recv_size, 0);
                         if(send_size <= 0) return -1;
@@ -67,24 +69,24 @@ public:
         return 0;
     }
 
-    int proxy_GET(vector<char>& client_buf) {
-        string req = client_buf.data();
+    int proxy_GET(HttpRequest& http_req) {
 
         // send request to server
-        ssize_t send_size = send(server_fd, &client_buf.data()[0], BUF_LEN, 0);
+        ssize_t send_size = send(server_fd, &http_req.raw_data.data()[0], http_req.size, 0);
         if(send_size <= 0) return -1;
 
-        logging_send_request(id, req, hostname);
-
+        logging_send_request(id, http_req.firstline, hostname);
 
         // receive response from server
-        vector<char> server_buf(BUF_LEN);
-        ssize_t recv_size = recv(server_fd, &server_buf.data()[0], BUF_LEN, 0);
+        vector<char> server_buf(RECV_BUF_LEN);
+        ssize_t recv_size = recv(server_fd, &server_buf.data()[0], RECV_BUF_LEN, 0);
         if(recv_size <= 0) return -1;
-        // TODO: HttpResponse http_resp(resp);
+        // TODO: HttpResponse http_resp(server_buf);
 
         string resp = server_buf.data();
         logging_receive_response(id, resp, hostname);
+
+        recv_all();
 
 
         // send response to client
@@ -95,32 +97,8 @@ public:
         return 0;
     }
 
-    int proxy_POST(vector<char>& client_buf) {
-        string req = client_buf.data();
-
-        // send request to server
-        ssize_t send_size = send(server_fd, &client_buf.data()[0], BUF_LEN, 0);
-        if(send_size <= 0) return -1;
-
-        logging_send_request(id, req, hostname);
-
-
-        // receive response from server
-        vector<char> server_buf(BUF_LEN);
-        ssize_t recv_size = recv(server_fd, &server_buf.data()[0], BUF_LEN, 0);
-        if(recv_size <= 0) return -1;
-        // TODO: HttpResponse http_resp(resp);
-
-        string resp = server_buf.data();
-        logging_receive_response(id, resp, hostname);
-
-
-        // send response to client
-        send_size = send(client_fd, &server_buf.data()[0], BUF_LEN, 0);
-        if(send_size <= 0) return -1;
-
-        logging_send_response(id, resp);
-        return 0;
+    int proxy_POST(HttpRequest& http_req) {
+        
     }
 
     int proxy_OTHER() {
@@ -129,7 +107,7 @@ public:
         string resp = BADREQUEST;
         resp = resp.substr(0, resp.length()-4);
         logging_send_response(id, resp);
-        return 0;
+        return -1;
     }
 
     ~Proxy() {
@@ -150,15 +128,17 @@ void* proxyMain(void* paras) {
     ssize_t recv_size = recv(proxy.client_fd, &client_buf.data()[0], BUF_LEN, 0);
     if(recv_size <= 0) return NULL;
 
-    string req = client_buf.data(), ip = proxy.client_ip, time = proxy.get_time();
-    logging_receive_request(proxy.id, req, ip, time);
+    string ip = proxy.client_ip, time = proxy.get_time();
 
-    HttpRequest* request = new HttpRequest();
-    parse_request(client_buf, request);
+    HttpRequest http_request(client_buf);
+    http_request.size = recv_size;
+    http_request.parse_request();
+
+    logging_receive_request(proxy.id, http_request.firstline, ip, time);
 
     // connect to server
-    proxy.hostname = request->header["Host"].c_str();
-    proxy.port = request->header["port"].c_str();
+    proxy.hostname = http_request.header["Host"].c_str();
+    proxy.port = http_request.header["port"].c_str();
 
     try {
         proxy.server_fd = init_client(proxy.hostname, proxy.port);
@@ -170,24 +150,26 @@ void* proxyMain(void* paras) {
     }
     
 
-    if(request->method == "CONNECT") { // CONNECT
+    if(http_request.method == "CONNECT") { // CONNECT
+        return NULL;
         if(proxy.proxy_CONNECT() == -1)
             return NULL;
     }
-    else if(request->method == "GET") { // GET
-        return NULL;
-        if(proxy.proxy_GET(client_buf) == -1)
+    else if(http_request.method == "GET") { // GET
+        if(proxy.proxy_GET(http_request) == -1)
             return NULL;
     }
-    else if(request->method == "POST"){ // POST
+    else if(http_request.method == "POST"){ // POST
         return NULL;
-        if(proxy.proxy_POST(client_buf) == -1)
+        if(proxy.proxy_POST(http_request) == -1)
             return NULL;
     }
     else {
         if(proxy.proxy_OTHER() == -1)
             return NULL;
     }
+
+    logging_close_tunnel(proxy.id);
     
     return NULL;
 }
