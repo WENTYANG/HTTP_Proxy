@@ -1,8 +1,10 @@
 CC=g++
-CFLAGS= -Wall
+CFLAGS= #-ggdb3 -Wall
 
-main: main.cpp helperFunction.h proxy.h parse.h
-	$(CC) $(CFLAGS) -o $@ main.cpp -lpthread
+all: main
+
+main: main.cpp helperFunction.cpp proxy.cpp parse.cpp cache.cpp
+	$(CC) $(CFLAGS) -o $@ main.cpp helperFunction.cpp proxy.cpp parse.cpp cache.cpp -pthread
 
 clean:
 	rm -rf main *.o *~ proxy.log
