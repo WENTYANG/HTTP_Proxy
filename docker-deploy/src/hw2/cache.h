@@ -38,6 +38,8 @@ class Cache {
     ul get_max_age(std::string& s);
 
     time_t parse_time(std::string& s);
+
+    void print_cache();
 };
 
 #endif

@@ -1,5 +1,7 @@
 # proj related
 *.txt
+*test*.sh
+*proxy_*/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

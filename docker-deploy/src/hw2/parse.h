@@ -19,13 +19,10 @@ class HttpRequest {
     std::string head;  // end with \r\n, include firstline
     std::string body;
     std::string firstline;
-    // Raw data and size
-    std::vector<char> raw_data;
-    ssize_t size;
 
-    HttpRequest(std::vector<char>& buf);
+    HttpRequest();
 
-    void parse_request();
+    void parse_request(std::vector<char>& buf, int size);
 
     std::string make_key();
 
@@ -47,7 +44,6 @@ class HttpResponse {
     // First received raw data and size
     std::vector<char> raw_data;
     ssize_t size;
-    ssize_t header_size;
     // content body
     std::string content_body;
     // response time

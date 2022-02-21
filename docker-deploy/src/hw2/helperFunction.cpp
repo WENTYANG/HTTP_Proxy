@@ -78,7 +78,7 @@ void logging_cache(int id, bool is_incache, bool is_valid, time_t expired_time=-
         log_ofs << id << ": in cache, valid" << endl;
     }
     else if(expired_time != -1) {
-        log_ofs << id << ": in cache, but expired at " << get_time(false,expired_time) << endl;
+        log_ofs << id << ": in cache, but expired at " << get_time(false,expired_time);
     }
     else {
         log_ofs << id << ": in cache, requires validation" << endl;
@@ -92,7 +92,7 @@ void logging_handle_cache(int id, bool is_cacheable, string reason="", time_t ex
         log_ofs << id << ": not cacheable bacause " << reason << endl;
     }
     else if(expires_time != -1) {
-        log_ofs << id << ": cached, expires at " << get_time(false, expires_time) << endl;
+        log_ofs << id << ": cached, expires at " << get_time(false, expires_time);
     }
     else {
         log_ofs << id << ": cached, but requires re-validation" << endl;

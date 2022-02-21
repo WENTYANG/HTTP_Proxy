@@ -1,5 +1,5 @@
 CC=g++
-CFLAGS= #-ggdb3 -Wall
+CFLAGS= -ggdb3 -Wall
 
 all: main
 

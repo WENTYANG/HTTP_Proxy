@@ -2,6 +2,7 @@
 #include "helperFunction.h"
 #include "cache.h"
 
+#include <iostream>
 #include <cstring>
 
 #define CACHE_SIZE 2048
@@ -18,14 +19,14 @@ HttpResponse Cache::get_response(HttpRequest& req) {
 void Cache::handle_cache(int id, HttpRequest& req, HttpResponse& resp) {
     if(resp.header.count("Cache-Control") && resp.header["Cache-Control"].find("no-store") != string::npos) {
         logging_handle_cache(id, false, "Cache control is no-store", -1);
+        return;
     }
-    else if(resp.header.count("Pragma") && resp.header["Pragma"].find("no-cache") != string::npos) {
-        logging_handle_cache(id, false, "Pragma is no-cache", -1);
-    }
-    else if(!need_revalid(id, resp, true)){
-        is_valid(id, req, true);
+    else if(resp.header.count("Cache-Control") && resp.header["Cache-Control"].find("private") != string::npos) {
+        logging_handle_cache(id, false, "Cache control is private", -1);
+        return;
     }
     add_to_cache(req, resp);
+    is_valid(id, req, true);
 }
 
 void Cache::add_to_cache(HttpRequest& req, HttpResponse resp) { // TODO: add ref to resp?
@@ -39,13 +40,14 @@ void Cache::add_to_cache(HttpRequest& req, HttpResponse resp) { // TODO: add ref
         cache_map.erase(cache_map.find(x));
         cache_queue.pop();
     }
-    
+
     cache_queue.push(key);
     cache_map[key] = resp;
 }
 
 bool Cache::need_revalid(int id, HttpResponse& resp, bool handle=false) {
-    if(resp.header.count("Cache-Control") && resp.header["Cache-Control"].find("no-cache") != string::npos) {
+    if((resp.header.count("Cache-Control") && resp.header["Cache-Control"].find("no-cache") != string::npos) ||
+       (resp.header.count("Pragma") && resp.header["Pragma"].find("no-cache") != string::npos)) {
         if(handle) logging_handle_cache(id, true, "", -1);
         else logging_cache(id, true, false, -1);
         return true;
@@ -66,8 +68,8 @@ bool Cache::is_incache(int id, HttpRequest& req) {
 bool Cache::is_valid(int id, HttpRequest& req, bool handle=false) {
     string key = req.make_key();
     HttpResponse resp = cache_map[key];
-
-    if(need_revalid(id, resp)) return false;
+    
+    if(need_revalid(id, resp, handle)) return false;
 
     ul cur_age = 0, max_age = 0;
     time_t expire_time = 0, date_time = 0, last_modify_time = 0;
@@ -99,7 +101,7 @@ bool Cache::is_valid(int id, HttpRequest& req, bool handle=false) {
 }
 
 ul Cache::get_max_age(string& s) {
-    int idx = 0;
+    size_t idx = 0;
     ul num = 0;
     if(s.find("s-maxage=") != string::npos) {
         idx = s.find("s-maxage=") + 9;
@@ -107,9 +109,9 @@ ul Cache::get_max_age(string& s) {
     else if(s.find("max-age=") != string::npos) {
         idx = s.find("max-age=") + 8;
     }
-    for(int i = idx; i < s.length(); ++i) {
-        if(!isdigit(s[idx])) break;
-        num = num * 10 + (s[idx] - '0');
+    for(size_t i = idx; i < s.length(); ++i) {
+        if(!isdigit(s[i])) break;
+        num = num * 10 + (s[i] - '0');
     }
     return num;
 }
@@ -121,4 +123,18 @@ time_t Cache::parse_time(string& s) {
     tm t;
     strptime(s.c_str(), "%a, %d %b %Y %H:%M:%S %Z", &t);
     return mktime(&t);
+}
+
+void Cache::print_cache() {
+    cout << "----------- cache -----------" << endl;
+    if(cache_queue.size() == 0) {
+        cout << "cache empty!" << endl;
+    }
+    else {
+        cout << "cache size = " << cache_queue.size() << endl;
+        for(auto& p: cache_map) {
+            cout << "key = \"" << p.first << "\" | val = \"" << p.second.firstline << "...\"" << endl;
+        }
+    }
+    cout << "-----------------------------" << endl;
 }

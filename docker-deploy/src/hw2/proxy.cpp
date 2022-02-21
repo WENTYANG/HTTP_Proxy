@@ -30,8 +30,8 @@ int Proxy::connect_server(HttpRequest& http_request) {
     hostname = http_request.header["Host"].c_str();
     port = http_request.header["port"].c_str();
 
-    // hostname = "www.facebook.com";
-    // port = "443";
+    // hostname = "vcm-24073.vm.duke.edu";
+    // port = "15213";
 
     try {
         cout << "***Test: hostname: " << hostname
@@ -48,17 +48,17 @@ int Proxy::connect_server(HttpRequest& http_request) {
 
 void Proxy::recv_and_send(HttpResponse& http_resp) {
     vector<char> buf(RECV_BUF_LEN);
-    ul recv_size, send_size;
+    ul recv_size;
     if (!http_resp.is_chunked && http_resp.content_len > 0) {
         ul tot_len = http_resp.content_len,
-            cur_len = http_resp.size - http_resp.header_size;
+            cur_len = http_resp.size - http_resp.head.size() - 2;
         cout << "cur len: " << cur_len << " tot len: " << tot_len << endl;
         while (cur_len < tot_len) {
             recv_size = recv(server_fd, &buf.data()[0], RECV_BUF_LEN, 0);
             if (recv_size == 0)
                 break;
             if (send(client_fd, &buf.data()[0], recv_size, 0) == -1) {
-                throw MyException("Send chunked data to client error");
+                throw MyException("Send content data to client error");
             }
             cur_len += recv_size;
             http_resp.content_body += string(buf.data(), recv_size);
@@ -100,21 +100,18 @@ int Proxy::proxy_CONNECT() {
 
         for (int& fd : fd_list) {
             if (FD_ISSET(fd, &rset)) {
-                ssize_t recv_size =
-                    recv(fd, &buf.data()[0], RECV_BUF_LEN, 0);
+                ssize_t recv_size = recv(fd, &buf.data()[0], RECV_BUF_LEN, 0);
                 if (recv_size < 0)
                     return -1;
                 else if (recv_size == 0)
                     return 0;
                 string msg = buf.data();
                 if (fd == client_fd) {
-                    send_size =
-                        send(server_fd, &buf.data()[0], recv_size, 0);
+                    send_size = send(server_fd, &buf.data()[0], recv_size, 0);
                     if (send_size <= 0)
                         return -1;
                 } else {
-                    send_size =
-                        send(client_fd, &buf.data()[0], recv_size, 0);
+                    send_size = send(client_fd, &buf.data()[0], recv_size, 0);
                     if (send_size <= 0)
                         return -1;
                 }
@@ -176,6 +173,8 @@ int Proxy::proxy_GET(HttpRequest& http_req, bool revalidate=false) {
     // send first response to client
     send_size = send(client_fd, &http_resp.raw_data.data()[0], http_resp.size, 0);
     if (send_size <= 0) return -1;
+
+    // recv rest response from server and sent to client
     try {
         recv_and_send(http_resp);
     } catch (exception& e) {
@@ -192,10 +191,9 @@ int Proxy::proxy_GET(HttpRequest& http_req, bool revalidate=false) {
 
 int Proxy::proxy_POST(HttpRequest& http_req) {
     // send request to server
-    ssize_t send_size =
-        send(server_fd, &http_req.raw_data.data()[0], http_req.size, 0);
-    if (send_size <= 0)
-        return -1;
+    string req_str = http_req.get_whole_req();
+    ssize_t send_size = send(server_fd, &req_str.c_str()[0], req_str.size(), 0);
+    if (send_size <= 0) return -1;
 
     logging_send_request(id, http_req.firstline, hostname);
 
@@ -271,7 +269,7 @@ int Proxy::send_log_badgateway() {
 }
 
 Proxy::~Proxy() {
-    close(server_fd);
+    if(server_fd != -1) close(server_fd);
     close(client_fd);
 }
 
@@ -289,10 +287,9 @@ void* proxyMain(void* paras) {
 
     string ip = proxy.client_ip;
 
-    HttpRequest http_request(client_buf);
-    http_request.size = recv_size;
+    HttpRequest http_request;
     try {
-        http_request.parse_request();
+        http_request.parse_request(client_buf, recv_size);
     } catch (exception& e) {
         cerr << "Parse request error: " << e.what() << endl;
         proxy.send_log_badrequest();
@@ -302,27 +299,32 @@ void* proxyMain(void* paras) {
     logging_receive_request(proxy.id, http_request.firstline, ip);
 
     // check if GET and in cache
-    // if(http_request.method == "GET") {
-    //     if(cache.is_incache(proxy.id, http_request)) {
-    //         HttpResponse cache_resp = cache.get_response(http_request);
-    //         if(!cache.is_valid(proxy.id, http_request, false)) { // need revalidate
-    //             HttpRequest reval_req = http_request;
-    //             if(cache_resp.header.count("ETag")) {
-    //                 reval_req.head.append("If-None-Match: "+cache_resp.header["ETag"]+"\r\n");
-    //             }
-    //             if(cache_resp.header.count("Last-Modified")) {
-    //                 reval_req.head.append("If-Modified-Since: " + cache_resp.header["Last-Modified"] + "\r\n");
-    //             }
-    //             if(proxy.connect_server(http_request) == -1) return NULL;
-    //             if(proxy.proxy_GET(reval_req, true) == -1) return NULL;
-                
-    //         }
-    //         ssize_t send_size = send(proxy.client_fd, cache_resp.content_body.data(), cache_resp.content_body.size(), 0);
-    //         if(send_size <= 0) return NULL;
-    //         logging_send_response(proxy.id, cache_resp.firstline);
-    //         return NULL;
-    //     }
-    // }
+    if(http_request.method == "GET") {
+        cache.print_cache();
+        if(cache.is_incache(proxy.id, http_request)) {
+            HttpResponse cache_resp = cache.get_response(http_request);
+            if(!cache.is_valid(proxy.id, http_request, false)) { // need revalidate
+                if(cache_resp.header.count("ETag")) {
+                    http_request.header["If-None-Match"] = cache_resp.header["ETag"];
+                    http_request.head.append("If-None-Match: " + cache_resp.header["ETag"] + "\r\n");
+                }
+                if(cache_resp.header.count("Last-Modified")) {
+                    http_request.header["If-Modified-Since"] = cache_resp.header["Last-Modified"];
+                    http_request.head.append("If-Modified-Since: " + cache_resp.header["Last-Modified"] + "\r\n");
+                }
+                if(proxy.connect_server(http_request) == -1) return NULL;
+                if(proxy.proxy_GET(http_request, true) == -1) return NULL;
+                logging_close_tunnel(proxy.id);
+            }
+            else {
+                string resp_str = cache_resp.get_whole_resp();
+                ssize_t send_size = send(proxy.client_fd, &resp_str.c_str()[0], resp_str.size(), 0);
+                if(send_size <= 0) return NULL;
+                logging_send_response(proxy.id, cache_resp.firstline);
+            }
+            return NULL;
+        }
+    }
 
     // connect to server
     if(proxy.connect_server(http_request) == -1) {
@@ -334,11 +336,11 @@ void* proxyMain(void* paras) {
         if (proxy.proxy_CONNECT() == -1)
             return NULL;
     } else if (http_request.method == "GET") {  // GET
-        return NULL;
+        // return NULL;
         if (proxy.proxy_GET(http_request) == -1)
             return NULL;
     } else if (http_request.method == "POST") {  // POST
-        return NULL;
+        // return NULL;
         if (proxy.proxy_POST(http_request) == -1)
             return NULL;
     } else {
@@ -347,6 +349,6 @@ void* proxyMain(void* paras) {
     }
 
     logging_close_tunnel(proxy.id);
-    // cout << "end!!" << endl;
+    cout << "end!!" << endl;
     return NULL;
 }
