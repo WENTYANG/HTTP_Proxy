@@ -178,7 +178,7 @@ int accept_server(int socket_fd, string* ipFrom) {
     return client_connection_fd;
 }
 
-int init_client(const char* hostname, const char* port) {
+int init_client(const char* hostname, const char* port, int id) {
     int status;
     int socket_fd;
     struct addrinfo host_info;
@@ -192,7 +192,7 @@ int init_client(const char* hostname, const char* port) {
     if (status != 0) {
         string msg = "cannot get address info for host";
         string cate = "ERROR";
-        logging_msg(-1, cate, msg);
+        logging_msg(id, cate, msg);
         throw MyException("Socket expection");
     }
 
@@ -201,7 +201,7 @@ int init_client(const char* hostname, const char* port) {
     if (socket_fd == -1) {
         string msg = "cannot create socket";
         string cate = "ERROR";
-        logging_msg(-1, cate, msg);
+        logging_msg(id, cate, msg);
         throw MyException("Socket expection");
     }
 
@@ -210,7 +210,7 @@ int init_client(const char* hostname, const char* port) {
     if (status == -1) {
         string msg = "cannot connect to socket";
         string cate = "ERROR";
-        logging_msg(-1, cate, msg);
+        logging_msg(id, cate, msg);
         throw MyException("Socket expection");
     }
 

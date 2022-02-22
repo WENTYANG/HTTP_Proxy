@@ -17,6 +17,7 @@
 #define OK "HTTP/1.1 200 OK\r\n\r\n"
 #define BADREQUEST "HTTP/1.1 400 Bad Request\r\n\r\n"
 #define BADGATEWAY "HTTP/1.1 502 Bad Gateway\r\n\r\n"
+#define NOTIMPLEMENTED "HTTP/1.1 501 Not Implemented\r\n\r\n"
 
 
 using namespace std;
@@ -34,10 +35,10 @@ int Proxy::connect_server(HttpRequest& http_request) {
     // port = "15213";
 
     try {
-        cout << "***Test: hostname: " << hostname
-            << " port: " << port;
-        server_fd = init_client(hostname, port);
-        cout << " server_fd " << server_fd << "***" << endl;
+        // cout << "***Test: hostname: " << hostname
+        //     << " port: " << port;
+        server_fd = init_client(hostname, port, id);
+        // cout << " server_fd " << server_fd << "***" << endl;
     } catch (exception& e) {
         cerr << "Connect to server error: " << e.what() << endl;
         send_log_badrequest();
@@ -52,7 +53,7 @@ void Proxy::recv_and_send(HttpResponse& http_resp) {
     if (!http_resp.is_chunked && http_resp.content_len > 0) {
         ul tot_len = http_resp.content_len,
             cur_len = http_resp.size - http_resp.head.size() - 2;
-        cout << "cur len: " << cur_len << " tot len: " << tot_len << endl;
+        // cout << "cur len: " << cur_len << " tot len: " << tot_len << endl;
         while (cur_len < tot_len) {
             recv_size = recv(server_fd, &buf.data()[0], RECV_BUF_LEN, 0);
             if (recv_size == 0)
@@ -156,16 +157,12 @@ int Proxy::proxy_GET(HttpRequest& http_req, bool revalidate=false) {
 
     logging_receive_response(id, http_resp.firstline, hostname);
 
-    if(revalidate) {
-        if(http_resp.status_code == "200") {
-            cache.add_to_cache(http_req, http_resp);
-        }
-        else if(http_resp.status_code == "304") {
-            http_resp = cache.get_response(http_req);
-        }
+    if(revalidate && http_resp.status_code == "304") {
+        http_resp = cache.get_response(http_req);
         string resp_str = http_resp.get_whole_resp();
         send_size = send(client_fd, &resp_str.c_str()[0], resp_str.size(), 0);
         if (send_size <= 0) return -1;
+        
         logging_send_response(id, http_resp.firstline);
         return 0;
     }
@@ -245,7 +242,7 @@ int Proxy::proxy_POST(HttpRequest& http_req) {
 }
 
 int Proxy::proxy_OTHER() {
-    return send_log_badrequest();
+    return send_log_notimplemented();
 }
 
 int Proxy::send_log_badrequest() {
@@ -263,6 +260,16 @@ int Proxy::send_log_badgateway() {
     if (send_size <= 0)
         return -1;
     string resp = BADGATEWAY;
+    resp = resp.substr(0, resp.length() - 4);
+    logging_send_response(id, resp);
+    return 0;
+}
+
+int Proxy::send_log_notimplemented() {
+    ssize_t send_size = send(client_fd, NOTIMPLEMENTED, sizeof(NOTIMPLEMENTED), 0);
+    if (send_size <= 0)
+        return -1;
+    string resp = NOTIMPLEMENTED;
     resp = resp.substr(0, resp.length() - 4);
     logging_send_response(id, resp);
     return 0;
@@ -349,6 +356,6 @@ void* proxyMain(void* paras) {
     }
 
     logging_close_tunnel(proxy.id);
-    cout << "end!!" << endl;
+    // cout << "end!!" << endl;
     return NULL;
 }

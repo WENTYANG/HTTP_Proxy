@@ -22,6 +22,9 @@ using namespace std;
 
 extern Cache & cache;
 
+vector<pthread_t> pthreads;
+vector<threadPara_t> threadParas;
+
 static void create_daemon() {
     pid_t pid;
 
@@ -80,10 +83,11 @@ int main() {
         paras.socket_fd = client_connection_fd;
         paras.request_id = request_id;
         paras.ip_from = ipFrom;
-        // cout << "create thread with socket_fd=" << socket_fd << "with
-        // request_id=" << request_id << endl;
         ++request_id;
-        pthread_create(&thread, NULL, proxyMain, &paras);
+
+        pthreads.push_back(thread);
+        threadParas.push_back(paras);
+        pthread_create(&pthreads.back(), NULL, proxyMain, &threadParas.back());
     }
 
     return EXIT_SUCCESS;

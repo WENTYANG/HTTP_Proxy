@@ -1,0 +1,18 @@
+Testing:
+
+- CONNECT:
+1. https://www.google.com
+2. https://www.facebook.com
+3. https://www.youtube.com
+
+- GET
+1. chuncked data/no-store: http://www.httpwatch.com/httpgallery/chunked/chunkedimage.aspx
+2. content length data/max-age=600: http://www.dxzy163.com/
+3. no cache, max-age=0: http://pcookie.cnzz.com/app.gif?&cna=3IWUGjh7zTsCAZgDRX6Kl/7x
+4. max-age=1, 304 not modified: http://vcm-24073.vm.duke.edu:15214
+5. http://www.usaco.org/index.php
+6. 400 bad request: http://www.fakewebsite12345.com/
+
+
+- POST:
+1. http://httpbin.org/forms/post

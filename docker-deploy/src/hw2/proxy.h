@@ -33,6 +33,8 @@ class Proxy {
 
     int send_log_badgateway();
 
+    int send_log_notimplemented();
+
     ~Proxy();
 };
 

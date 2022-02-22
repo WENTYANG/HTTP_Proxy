@@ -42,7 +42,7 @@ int init_server(const char* port);
 
 int accept_server(int socket_fd, std::string* ipFrom);
 
-int init_client(const char* hostname, const char* port);
+int init_client(const char* hostname, const char* port, int id);
 
 /* ------------------------ multi-thread helper ------------------------ */
 typedef struct ThreadPara {
