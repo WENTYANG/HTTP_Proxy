@@ -17,6 +17,10 @@ HttpResponse Cache::get_response(HttpRequest& req) {
 }
 
 void Cache::handle_cache(int id, HttpRequest& req, HttpResponse& resp) {
+    if(resp.status_code != "200") {
+        logging_handle_cache(id, false, "status is not 200", -1);
+        return;
+    }
     if(resp.header.count("Cache-Control") && resp.header["Cache-Control"].find("no-store") != string::npos) {
         logging_handle_cache(id, false, "Cache control is no-store", -1);
         return;

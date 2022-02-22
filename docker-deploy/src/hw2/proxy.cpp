@@ -311,13 +311,18 @@ void* proxyMain(void* paras) {
         if(cache.is_incache(proxy.id, http_request)) {
             HttpResponse cache_resp = cache.get_response(http_request);
             if(!cache.is_valid(proxy.id, http_request, false)) { // need revalidate
+            string cate = "NOTE", msg;
                 if(cache_resp.header.count("ETag")) {
                     http_request.header["If-None-Match"] = cache_resp.header["ETag"];
-                    http_request.head.append("If-None-Match: " + cache_resp.header["ETag"] + "\r\n");
+                    msg = "If-None-Match: " + cache_resp.header["ETag"];
+                    http_request.head.append(msg + "\r\n");
+                    logging_msg(proxy.id, cate, msg);
                 }
                 if(cache_resp.header.count("Last-Modified")) {
                     http_request.header["If-Modified-Since"] = cache_resp.header["Last-Modified"];
-                    http_request.head.append("If-Modified-Since: " + cache_resp.header["Last-Modified"] + "\r\n");
+                    msg = "If-Modified-Since: " + cache_resp.header["Last-Modified"];
+                    http_request.head.append(msg + "\r\n");
+                    logging_msg(proxy.id, cate, msg);
                 }
                 if(proxy.connect_server(http_request) == -1) return NULL;
                 if(proxy.proxy_GET(http_request, true) == -1) return NULL;
