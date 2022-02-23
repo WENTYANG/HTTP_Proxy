@@ -311,7 +311,6 @@ void* proxyMain(void* paras) {
         if(cache.is_incache(proxy.id, http_request)) {
             HttpResponse cache_resp = cache.get_response(http_request);
             if(!cache.is_valid(proxy.id, http_request, false)) { // need revalidate
-                cout << cache_resp.head << endl;
                 string cate = "NOTE", msg;
                 if(cache_resp.header_has("ETag")) {
                     http_request.header["if-none-match"] = cache_resp.header["etag"];
@@ -345,15 +344,12 @@ void* proxyMain(void* paras) {
     }
 
     if (http_request.method == "CONNECT") {  // CONNECT
-        // return NULL;
         if (proxy.proxy_CONNECT() == -1)
             return NULL;
     } else if (http_request.method == "GET") {  // GET
-        // return NULL;
         if (proxy.proxy_GET(http_request) == -1)
             return NULL;
     } else if (http_request.method == "POST") {  // POST
-        // return NULL;
         if (proxy.proxy_POST(http_request) == -1)
             return NULL;
     } else {
@@ -362,6 +358,5 @@ void* proxyMain(void* paras) {
     }
 
     logging_close_tunnel(proxy.id);
-    // cout << "end!!" << endl;
     return NULL;
 }

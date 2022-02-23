@@ -5,10 +5,12 @@
 #include <iostream>
 #include <cstring>
 
-#define CACHE_SIZE 2048
+#define CACHE_SIZE 20
 
 
 using namespace std;
+
+static pthread_mutex_t cache_lock = PTHREAD_MUTEX_INITIALIZER;
 
 Cache::Cache() : size(CACHE_SIZE) {}
 
@@ -29,11 +31,13 @@ void Cache::handle_cache(int id, HttpRequest& req, HttpResponse& resp) {
         logging_handle_cache(id, false, "Cache control is private", -1);
         return;
     }
+    pthread_mutex_lock(&cache_lock);
     add_to_cache(req, resp);
     is_valid(id, req, true);
+    pthread_mutex_unlock(&cache_lock);
 }
 
-void Cache::add_to_cache(HttpRequest& req, HttpResponse resp) { // TODO: add ref to resp?
+void Cache::add_to_cache(HttpRequest& req, HttpResponse resp) {
     string key = req.make_key();
     if(cache_map.count(key)) {
         cache_map[key] = resp;
