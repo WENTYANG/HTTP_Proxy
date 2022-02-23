@@ -33,8 +33,8 @@ void Cache::handle_cache(int id, HttpRequest& req, HttpResponse& resp) {
     }
     pthread_mutex_lock(&cache_lock);
     add_to_cache(req, resp);
-    is_valid(id, req, true);
     pthread_mutex_unlock(&cache_lock);
+    is_valid(id, req, true);
 }
 
 void Cache::add_to_cache(HttpRequest& req, HttpResponse resp) {
@@ -75,7 +75,9 @@ bool Cache::is_incache(int id, HttpRequest& req) {
 
 bool Cache::is_valid(int id, HttpRequest& req, bool handle=false) {
     string key = req.make_key();
+    pthread_mutex_lock(&cache_lock);
     HttpResponse resp = cache_map[key];
+    pthread_mutex_unlock(&cache_lock);
     
     if(need_revalid(id, resp, handle)) return false;
 
