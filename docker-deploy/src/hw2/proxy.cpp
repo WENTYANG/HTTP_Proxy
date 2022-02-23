@@ -28,7 +28,7 @@ Proxy::Proxy(int socket_fd, int id, string& ip)
     : client_fd(socket_fd), id(id), server_fd(-1), client_ip(ip) {}
 
 int Proxy::connect_server(HttpRequest& http_request) {
-    hostname = http_request.header["Host"].c_str();
+    hostname = http_request.header["host"].c_str();
     port = http_request.header["port"].c_str();
 
     // hostname = "vcm-24073.vm.duke.edu";
@@ -311,16 +311,17 @@ void* proxyMain(void* paras) {
         if(cache.is_incache(proxy.id, http_request)) {
             HttpResponse cache_resp = cache.get_response(http_request);
             if(!cache.is_valid(proxy.id, http_request, false)) { // need revalidate
-            string cate = "NOTE", msg;
-                if(cache_resp.header.count("ETag")) {
-                    http_request.header["If-None-Match"] = cache_resp.header["ETag"];
-                    msg = "If-None-Match: " + cache_resp.header["ETag"];
+                cout << cache_resp.head << endl;
+                string cate = "NOTE", msg;
+                if(cache_resp.header_has("ETag")) {
+                    http_request.header["if-none-match"] = cache_resp.header["etag"];
+                    msg = "If-None-Match: " + cache_resp.header["etag"];
                     http_request.head.append(msg + "\r\n");
                     logging_msg(proxy.id, cate, msg);
                 }
-                if(cache_resp.header.count("Last-Modified")) {
-                    http_request.header["If-Modified-Since"] = cache_resp.header["Last-Modified"];
-                    msg = "If-Modified-Since: " + cache_resp.header["Last-Modified"];
+                if(cache_resp.header_has("Last-Modified")) {
+                    http_request.header["if-modified-since"] = cache_resp.header["last-modified"];
+                    msg = "If-Modified-Since: " + cache_resp.header["last-modified"];
                     http_request.head.append(msg + "\r\n");
                     logging_msg(proxy.id, cate, msg);
                 }

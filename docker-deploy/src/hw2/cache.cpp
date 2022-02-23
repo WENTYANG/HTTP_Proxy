@@ -21,11 +21,11 @@ void Cache::handle_cache(int id, HttpRequest& req, HttpResponse& resp) {
         logging_handle_cache(id, false, "status is not 200", -1);
         return;
     }
-    if(resp.header.count("Cache-Control") && resp.header["Cache-Control"].find("no-store") != string::npos) {
+    if(resp.header_has("Cache-Control") && resp.header["cache-control"].find("no-store") != string::npos) {
         logging_handle_cache(id, false, "Cache control is no-store", -1);
         return;
     }
-    else if(resp.header.count("Cache-Control") && resp.header["Cache-Control"].find("private") != string::npos) {
+    else if(resp.header_has("Cache-Control") && resp.header["cache-control"].find("private") != string::npos) {
         logging_handle_cache(id, false, "Cache control is private", -1);
         return;
     }
@@ -50,8 +50,8 @@ void Cache::add_to_cache(HttpRequest& req, HttpResponse resp) { // TODO: add ref
 }
 
 bool Cache::need_revalid(int id, HttpResponse& resp, bool handle=false) {
-    if((resp.header.count("Cache-Control") && resp.header["Cache-Control"].find("no-cache") != string::npos) ||
-       (resp.header.count("Pragma") && resp.header["Pragma"].find("no-cache") != string::npos)) {
+    if((resp.header_has("Cache-Control") && resp.header["cache-control"].find("no-cache") != string::npos) ||
+       (resp.header_has("Pragma") && resp.header["pragma"].find("no-cache") != string::npos)) {
         if(handle) logging_handle_cache(id, true, "", -1);
         else logging_cache(id, true, false, -1);
         return true;
@@ -77,18 +77,18 @@ bool Cache::is_valid(int id, HttpRequest& req, bool handle=false) {
 
     ul cur_age = 0, max_age = 0;
     time_t expire_time = 0, date_time = 0, last_modify_time = 0;
-    if(resp.header.count("Age")) cur_age = stoul(resp.header["Age"]);
-    if(resp.header.count("Cache-Control")) {
-        string cache_control = resp.header["Cache-Control"];
+    if(resp.header_has("Age")) cur_age = stoul(resp.header["age"]);
+    if(resp.header_has("Cache-Control")) {
+        string cache_control = resp.header["cache-control"];
         max_age = get_max_age(cache_control);
         expire_time = resp.resp_time + max_age - cur_age;
     }
-    else if(resp.header.count("Expires")) {
-        expire_time = parse_time(resp.header["Expires"]);
+    else if(resp.header_has("Expires")) {
+        expire_time = parse_time(resp.header["expires"]);
     }
-    else if(resp.header.count("Last-Modified") && resp.header.count("Date")) {
-        date_time = parse_time(resp.header["Date"]);
-        last_modify_time = parse_time(resp.header["Last-Modified"]);
+    else if(resp.header_has("Last-Modified") && resp.header_has("Date")) {
+        date_time = parse_time(resp.header["date"]);
+        last_modify_time = parse_time(resp.header["last-modified"]);
         expire_time = resp.resp_time + (date_time - last_modify_time) / 10 - cur_age;
     }
     if(!handle && expire_time != 0 && difftime(time(NULL), expire_time) > 0) {

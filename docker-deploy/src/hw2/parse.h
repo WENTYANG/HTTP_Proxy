@@ -26,6 +26,8 @@ class HttpRequest {
 
     std::string make_key();
 
+    bool header_has(std::string str);
+
     std::string get_whole_req();
 };
 
@@ -53,6 +55,8 @@ class HttpResponse {
     HttpResponse(std::vector<char>& buf);
 
     void parse_response();
+
+    bool header_has(std::string str);
 
     std::string get_whole_resp();
 };

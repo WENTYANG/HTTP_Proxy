@@ -37,8 +37,9 @@ void HttpRequest::parse_request(vector<char>& raw_data, int size) {
         size_t colon = line.find(':');
 
         string key = line.substr(0, colon);
+        for(char& c: key) c = tolower(c);
 
-        if (key == "Host") {
+        if (key == "host") {
             size_t colon_sec = line.find(':', colon + 1);
             string hostname;
             if (colon_sec < line.size()) {
@@ -59,9 +60,9 @@ void HttpRequest::parse_request(vector<char>& raw_data, int size) {
         newline = newline_sec;
     }
 
-    if ((method == "POST" || method == "GET") && header.count("port") == 0) {
+    if ((method == "POST" || method == "GET") && header_has("port") == 0) {
         header["port"] = "80";
-    } else if (method == "CONNECT" && header.count("port") == 0) {
+    } else if (method == "CONNECT" && header_has("port") == 0) {
         header["port"] = "443";
     }
 }
@@ -69,9 +70,14 @@ void HttpRequest::parse_request(vector<char>& raw_data, int size) {
 string HttpRequest::make_key() {
     if (url.find("http://") != string::npos)
         return url;
-    else if (url.find(header["Hostname"]) != string::npos)
+    else if (url.find(header["host"]) != string::npos)
         return "http://" + url;
-    return "http://" + header["Hostname"] + url;
+    return "http://" + header["host"] + url;
+}
+
+bool HttpRequest::header_has(string str) {
+    for(char& c: str) c = tolower(c);
+    return header.count(str);
 }
 
 string HttpRequest::get_whole_req() {
@@ -115,6 +121,7 @@ void HttpResponse::parse_response() {
         size_t colon = line.find(':');
 
         string key = line.substr(0, colon);
+        for(char& c: key) c = tolower(c);
 
         string value = line.substr(
             colon + 2,
@@ -127,11 +134,16 @@ void HttpResponse::parse_response() {
     //     cout << "Key:" << kv.first << ", Value:" << kv.second << endl;
     // }
 
-    if (header.count("Transfer-Encoding") > 0 && header["Transfer-Encoding"] == "chunked") {
+    if (header_has("transfer-encoding") > 0 && header["transfer-encoding"] == "chunked") {
         is_chunked = true;
-    } else if (header.count("Content-Length") > 0){
-        content_len = stoul(header["Content-Length"]);
+    } else if (header_has("content-length") > 0){
+        content_len = stoul(header["content-length"]);
     }
+}
+
+bool HttpResponse::header_has(string str) {
+    for(char& c: str) c = tolower(c);
+    return header.count(str);
 }
 
 string HttpResponse::get_whole_resp() {
