@@ -5,7 +5,7 @@
 #include <iostream>
 #include <cstring>
 
-#define CACHE_SIZE 20
+#define CACHE_SIZE 2048
 
 
 using namespace std;

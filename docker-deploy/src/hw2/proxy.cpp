@@ -307,7 +307,7 @@ void* proxyMain(void* paras) {
 
     // check if GET and in cache
     if(http_request.method == "GET") {
-        cache.print_cache();
+        // cache.print_cache();
         if(cache.is_incache(proxy.id, http_request)) {
             HttpResponse cache_resp = cache.get_response(http_request);
             if(!cache.is_valid(proxy.id, http_request, false)) { // need revalidate

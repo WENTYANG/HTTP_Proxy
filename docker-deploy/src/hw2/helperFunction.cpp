@@ -9,7 +9,7 @@
 
 #include "helperFunction.h"
 
-#define LOG_PATH "proxy.log"
+#define LOG_PATH "/var/log/erss/proxy.log"
 
 using namespace std;
 

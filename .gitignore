@@ -2,6 +2,7 @@
 *.txt
 *test*.sh
 *proxy_*/
+.vscode/
 
 !testing.txt
 

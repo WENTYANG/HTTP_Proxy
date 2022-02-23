@@ -8,6 +8,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <iostream>
+#include <fcntl.h>
 
 #define PORT "12345"
 
@@ -28,36 +29,37 @@ vector<threadPara_t> threadParas;
 static void create_daemon() {
     pid_t pid;
 
+    // create child process
     pid = fork();
-
     if (pid < 0)
         exit(EXIT_FAILURE);
     if (pid > 0)
         exit(EXIT_SUCCESS);
+    
+    // dissociate from controlling tty(use setsid())
     if (setsid() < 0)
         exit(EXIT_FAILURE);
 
-    signal(SIGCHLD, SIG_IGN);
-    signal(SIGHUP, SIG_IGN);
+    // point stdin/stdout/stderr at /dev/null(use dup2())
+    int fd = open( "/dev/null", O_WRONLY);
+    if(fd < 0 || dup2(fd, 0) < 0 || dup2(fd, 1) < 0 || dup2(fd, 2) < 0) {
+        exit(EXIT_FAILURE);
+    }
 
+    chdir("/");
+
+    umask(0);
+
+    // use fork() again to make the process not a session leader
     pid = fork();
-
     if (pid < 0)
         exit(EXIT_FAILURE);
     if (pid > 0)
         exit(EXIT_SUCCESS);
-
-    umask(0);
-
-    chdir("/");
-
-    int x;
-    for (x = sysconf(_SC_OPEN_MAX); x >= 0; x--)
-        close(x);
 }
 
 int main() {
-    // create_daemon();
+    create_daemon();
 
     int request_id = 0;
     int socket_fd;
