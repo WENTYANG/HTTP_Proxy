@@ -1,0 +1,55 @@
+Robust to external failures:
+1. If the fork() operation fails, returning pid != 0, the program would exit with EXIT_FAILURE
+
+2. If the set session id operation fails, returning negative number, the program would exit with EXIT_FAILURE
+
+3. If we fail to point stdin/stdout/stderr at /dev/null, the program would exit with EXIT_FAILURE
+
+4. The program checks whether an error occurs during recv() by checking if its return value is bigger than 0,
+if not, it would return NULL and end this thread.
+
+5. In the GET, POST and CONNECT functions, if any error occurs, the functions would return -1(While returning
+0 in normal situations), the proxyMain function checks if the return value == -1, when it is, the function would
+return NULL to end the thread properly.
+
+6. While receiving the HTTP response, if the response is not chunked, we calculate the total content length using
+the content-length provided in the header, and we compare this length to the content length we have currently
+received (receive size - header size), when the two sizes are equal, we break out of the while loop and stops
+recv(). This design can handle the situation when the connection is not stable and the recv() might be blocked
+for a long time.
+
+In the GET, POST and CONNECT method, when recv() or send() function has errors, return -1
+
+7. In the GET method, while receiving the first part of the response, if the connection is not stable, and we do 
+not receive a complete header at the first time, the program would always handle it by finding "\r\n\r\n" in the
+received string. When it does not find "\r\n\r\n", it would continue receiving until it gets the complete header.
+
+8. If we receive a request of a method that is not implemented, we handle it by the procy_OTHER() method:
+log a message "HTTP/1.1 501 Not Implemented", and return -1.
+
+
+
+Exception guarantees:
+1. We have a try and catch block while initialing our proxy as a server connecting to the given port, if any
+exceptions happen during the initialization, the program would exit with EXIT_FAILURE. These exceptions
+include:
+	1)Fail to get the address information using the given hostname and port
+	2)Fail to establish the socket
+	3)Fail to bind the socket to the host
+	4)Fail to listen on the socket
+
+2. We have a try and catch block while connecting with the client, if any exceptions happen, an error message
+is printed to cerr, and the program would continue running in the while(true) loop. The exceptions include:
+	1)Fail to accept connection on the socket
+
+3. In proxyMain function, we have a try and catch block while parsing the HTTP request.  if any exceptions 
+happen, an error message is printed to cerr, a badrequest would be logged, and proxyMain returns NULL 
+to return to main function. 
+
+4. In the GET and POST method, if the response parsing throws out an exception, an error message would 
+be printed to cerr, and a badgateway would be logged. The function returns -1 to end the thread properly.
+
+5. In the GET method, when we are receiving the response from the server, and sending it to client, if an error
+occurs in send(), the function would throw an exception with a description of whether it occurs during sending
+a chunked data or non-chunked data. A badgateway would be logged.
+

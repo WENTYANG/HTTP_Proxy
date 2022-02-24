@@ -1,8 +1,8 @@
 # proj related
-*.txt
 *test*.sh
 *proxy_*/
 .vscode/
+proxy.log
 
 !testing.txt
 
